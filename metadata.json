@@ -1,0 +1,5 @@
+{
+  "name": "Geeks Genics - WhatsApp AI Automation",
+  "description": "Geeks Genics: AI-powered WhatsApp automation with multi-agent support, QR-based connection, and admin dashboard.",
+  "requestFramePermissions": ["microphone"]
+}
