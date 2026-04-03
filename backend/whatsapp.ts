@@ -213,9 +213,9 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
     const insertConv = await db.prepare(insertConvSql);
     for (const chat of chats) {
       // Skip status updates
-      if (chat.id === 'status@broadcast') continue;
+      if (!chat.id || chat.id === 'status@broadcast') continue;
       
-      const number = chat.id?.split('@')[0];
+      const number = chat.id.split('@')[0];
       await insertConv.run(sessionId, chat.id, chat.name || null, new Date().toISOString());
     }
   });
@@ -256,7 +256,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
     if (m.type === 'notify') {
       for (const msg of m.messages) {
         // Skip status updates
-        if (msg.key.remoteJid === 'status@broadcast') continue;
+        if (!msg.key?.remoteJid || msg.key.remoteJid === 'status@broadcast') continue;
 
         if (!msg.key.fromMe && msg.message) {
           await handleIncomingMessage(sessionId, sock, msg, io);
