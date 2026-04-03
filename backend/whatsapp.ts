@@ -117,14 +117,8 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
     
     try {
       // Sync contacts in a single transaction for speed
-      if (isMySQL) {
-        await db.exec('START TRANSACTION');
-      } else {
-        await db.exec('BEGIN TRANSACTION');
-      }
-      const insertContactSql = isMySQL 
-        ? 'REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)'
-        : 'INSERT OR REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)';
+      await db.exec('START TRANSACTION');
+      const insertContactSql = 'REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)';
       const insertContact = await db.prepare(insertContactSql);
       for (const contact of contacts) {
         const number = contact.id.split('@')[0];
@@ -143,14 +137,8 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
       if (userRoom) {
         io.to(userRoom).emit('sync_status', { sessionId, status: 'syncing', progress: 5, message: 'Syncing chats...' });
       }
-      if (isMySQL) {
-        await db.exec('START TRANSACTION');
-      } else {
-        await db.exec('BEGIN TRANSACTION');
-      }
-      const insertConvSql = isMySQL
-        ? 'INSERT IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)'
-        : 'INSERT OR IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)';
+      await db.exec('START TRANSACTION');
+      const insertConvSql = 'INSERT IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)';
       const insertConv = await db.prepare(insertConvSql);
       for (const chat of chats) {
         if (chat.id === 'status@broadcast' || !chat.id) continue;
@@ -170,11 +158,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
       const chunkSize = 50;
       for (let i = 0; i < messages.length; i += chunkSize) {
         const chunk = messages.slice(i, i + chunkSize);
-        if (isMySQL) {
-          await db.exec('START TRANSACTION');
-        } else {
-          await db.exec('BEGIN TRANSACTION');
-        }
+        await db.exec('START TRANSACTION');
         for (const msg of chunk) {
           if (msg.key?.remoteJid === 'status@broadcast' || !msg.key?.remoteJid) continue;
           if (msg.message) {
@@ -195,11 +179,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
       }
     } catch (error) {
       console.error(`Error during history sync for session ${sessionId}:`, error);
-      if (isMySQL) {
-        await db.exec('ROLLBACK').catch(() => {});
-      } else {
-        await db.exec('ROLLBACK').catch(() => {});
-      }
+      await db.exec('ROLLBACK').catch(() => {});
       if (userRoom) {
         io.to(userRoom).emit('sync_status', { sessionId, status: 'error', message: 'Sync failed. Please try again.' });
       }
@@ -207,9 +187,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
   });
 
   sock.ev.on('chats.upsert', async (chats) => {
-    const insertConvSql = isMySQL
-      ? 'INSERT IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)'
-      : 'INSERT OR IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)';
+    const insertConvSql = 'INSERT IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)';
     const insertConv = await db.prepare(insertConvSql);
     for (const chat of chats) {
       // Skip status updates
@@ -230,9 +208,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
   });
 
   sock.ev.on('contacts.upsert', async (contacts) => {
-    const insertContactSql = isMySQL
-      ? 'REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)'
-      : 'INSERT OR REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)';
+    const insertContactSql = 'REPLACE INTO contacts (session_id, jid, name, number) VALUES (?, ?, ?, ?)';
     const insertContact = await db.prepare(insertContactSql);
     const updateConv = await db.prepare('UPDATE conversations SET contact_name = ? WHERE session_id = ? AND contact_number = ?');
     for (const contact of contacts) {

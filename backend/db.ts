@@ -8,7 +8,8 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export let isMySQL = !!(process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME);
+// Hostinger optimization: MySQL is mandatory
+const hasMySQLConfig = !!(process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME);
 
 const mysqlConfig = {
   client: 'mysql2',
@@ -22,25 +23,19 @@ const mysqlConfig = {
   pool: { min: 0, max: 10 }
 };
 
-// Hostinger optimization: Use MySQL exclusively
-if (!isMySQL) {
-  console.warn('MySQL configuration missing. Please check your .env file. The application requires MySQL for Hostinger deployment.');
+if (!hasMySQLConfig) {
+  console.error('CRITICAL: MySQL configuration missing in .env file.');
+  console.error('The application requires MySQL for deployment on Hostinger.');
+  // We don't exit immediately here to allow the module to load, 
+  // but initDb will fail and the app will be unusable.
 }
 
-let currentDb = knex(mysqlConfig);
-
-// Proxy to allow dynamic switching of the knex instance (kept for compatibility)
-const dbProxy = new Proxy({} as any, {
-  get(_, prop) {
-    return (currentDb as any)[prop];
-  }
-});
+const currentDb = knex(mysqlConfig);
 
 // Initialize tables
 async function initDb() {
-  if (!isMySQL) {
-    console.error('Database initialization failed: MySQL configuration missing.');
-    return;
+  if (!hasMySQLConfig) {
+    throw new Error('Database initialization failed: MySQL configuration missing.');
   }
 
   try {
@@ -56,9 +51,9 @@ async function initDb() {
     throw error; // Fail fast on Hostinger if MySQL is not available
   }
 
-  const hasUsers = await dbProxy.schema.hasTable('users');
+  const hasUsers = await currentDb.schema.hasTable('users');
   if (!hasUsers) {
-    await dbProxy.schema.createTable('users', (table: any) => {
+    await currentDb.schema.createTable('users', (table: any) => {
       table.increments('id').primary();
       table.string('email').unique().notNullable();
       table.string('username');
@@ -66,25 +61,25 @@ async function initDb() {
       table.string('role').defaultTo('user');
       table.string('two_factor_secret');
       table.boolean('is_two_factor_enabled').defaultTo(false);
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   } else {
     // Check for missing columns and add them if necessary
-    const columns = await dbProxy('users').columnInfo();
+    const columns = await currentDb('users').columnInfo();
     if (!columns.email) {
-      await dbProxy.schema.alterTable('users', (table: any) => {
+      await currentDb.schema.alterTable('users', (table: any) => {
         table.string('email').unique();
       });
       // Migrate username to email if email is null
-      await dbProxy('users').update({ email: dbProxy.ref('username') }).whereNull('email');
+      await currentDb('users').update({ email: currentDb.ref('username') }).whereNull('email');
     }
     if (!columns.role) {
-      await dbProxy.schema.alterTable('users', (table: any) => {
+      await currentDb.schema.alterTable('users', (table: any) => {
         table.string('role').defaultTo('user');
       });
     }
     if (!columns.two_factor_secret) {
-      await dbProxy.schema.alterTable('users', (table: any) => {
+      await currentDb.schema.alterTable('users', (table: any) => {
         table.string('two_factor_secret');
         table.boolean('is_two_factor_enabled').defaultTo(false);
       });
@@ -93,11 +88,11 @@ async function initDb() {
 
   // Initialize admin user
   const adminEmail = 'webdosolutions@gmail.com';
-  const admin = await dbProxy('users').where({ email: adminEmail }).first();
+  const admin = await currentDb('users').where({ email: adminEmail }).first();
   if (!admin) {
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.default.hash("Vn!s;0hovsDgR'%.Hk1lRuUkp_zF3n@2lS9r", 10);
-    await dbProxy('users').insert({
+    await currentDb('users').insert({
       email: adminEmail,
       username: 'admin',
       password: hashedPassword,
@@ -105,12 +100,12 @@ async function initDb() {
     });
     console.log(`Admin user ${adminEmail} created with default password provided.`);
   } else if (admin.role !== 'admin') {
-    await dbProxy('users').where({ email: adminEmail }).update({ role: 'admin' });
+    await currentDb('users').where({ email: adminEmail }).update({ role: 'admin' });
   }
 
-  const hasAgents = await dbProxy.schema.hasTable('agents');
+  const hasAgents = await currentDb.schema.hasTable('agents');
   if (!hasAgents) {
-    await dbProxy.schema.createTable('agents', (table: any) => {
+    await currentDb.schema.createTable('agents', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.string('name').notNullable();
@@ -126,13 +121,13 @@ async function initDb() {
       table.text('avatar');
       table.text('strategy');
       table.integer('is_active').defaultTo(1);
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasSessions = await dbProxy.schema.hasTable('whatsapp_sessions');
+  const hasSessions = await currentDb.schema.hasTable('whatsapp_sessions');
   if (!hasSessions) {
-    await dbProxy.schema.createTable('whatsapp_sessions', (table: any) => {
+    await currentDb.schema.createTable('whatsapp_sessions', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
@@ -140,13 +135,13 @@ async function initDb() {
       table.string('number').unique();
       table.string('status').defaultTo('disconnected');
       table.text('session_data');
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasConversations = await dbProxy.schema.hasTable('conversations');
+  const hasConversations = await currentDb.schema.hasTable('conversations');
   if (!hasConversations) {
-    await dbProxy.schema.createTable('conversations', (table: any) => {
+    await currentDb.schema.createTable('conversations', (table: any) => {
       table.increments('id').primary();
       table.integer('session_id').unsigned().references('id').inTable('whatsapp_sessions').onDelete('CASCADE');
       table.string('contact_number').notNullable();
@@ -158,38 +153,38 @@ async function initDb() {
       table.integer('is_audited').defaultTo(0);
       table.integer('is_autopilot').defaultTo(1);
       table.timestamp('last_reminder_sent_at');
-      table.timestamp('last_message_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('last_message_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasMessages = await dbProxy.schema.hasTable('messages');
+  const hasMessages = await currentDb.schema.hasTable('messages');
   if (!hasMessages) {
-    await dbProxy.schema.createTable('messages', (table: any) => {
+    await currentDb.schema.createTable('messages', (table: any) => {
       table.increments('id').primary();
       table.integer('conversation_id').unsigned().references('id').inTable('conversations').onDelete('CASCADE');
       table.string('sender').notNullable();
       table.text('content');
       table.string('type').defaultTo('text');
       table.text('transcription');
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasCampaigns = await dbProxy.schema.hasTable('bulk_campaigns');
+  const hasCampaigns = await currentDb.schema.hasTable('bulk_campaigns');
   if (!hasCampaigns) {
-    await dbProxy.schema.createTable('bulk_campaigns', (table: any) => {
+    await currentDb.schema.createTable('bulk_campaigns', (table: any) => {
       table.increments('id').primary();
       table.string('name').notNullable();
       table.text('message').notNullable();
       table.string('status').defaultTo('pending');
       table.timestamp('scheduled_at');
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasRecipients = await dbProxy.schema.hasTable('bulk_recipients');
+  const hasRecipients = await currentDb.schema.hasTable('bulk_recipients');
   if (!hasRecipients) {
-    await dbProxy.schema.createTable('bulk_recipients', (table: any) => {
+    await currentDb.schema.createTable('bulk_recipients', (table: any) => {
       table.increments('id').primary();
       table.integer('campaign_id').unsigned().references('id').inTable('bulk_campaigns').onDelete('CASCADE');
       table.string('number').notNullable();
@@ -197,22 +192,22 @@ async function initDb() {
     });
   }
 
-  const hasContacts = await dbProxy.schema.hasTable('contacts');
+  const hasContacts = await currentDb.schema.hasTable('contacts');
   if (!hasContacts) {
-    await dbProxy.schema.createTable('contacts', (table: any) => {
+    await currentDb.schema.createTable('contacts', (table: any) => {
       table.increments('id').primary();
       table.integer('session_id').unsigned().references('id').inTable('whatsapp_sessions').onDelete('CASCADE');
       table.string('jid').notNullable();
       table.string('name');
       table.string('number');
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
       table.unique(['session_id', 'jid']);
     });
   }
 
-  const hasAgentRules = await dbProxy.schema.hasTable('agent_rules');
+  const hasAgentRules = await currentDb.schema.hasTable('agent_rules');
   if (!hasAgentRules) {
-    await dbProxy.schema.createTable('agent_rules', (table: any) => {
+    await currentDb.schema.createTable('agent_rules', (table: any) => {
       table.increments('id').primary();
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
       table.string('trigger_type').notNullable(); // 'url_shared', 'keyword_match', 'sender_match'
@@ -221,25 +216,25 @@ async function initDb() {
       table.text('action_value');
       table.text('description');
       table.integer('is_active').defaultTo(1);
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasTrainingFiles = await dbProxy.schema.hasTable('training_files');
+  const hasTrainingFiles = await currentDb.schema.hasTable('training_files');
   if (!hasTrainingFiles) {
-    await dbProxy.schema.createTable('training_files', (table: any) => {
+    await currentDb.schema.createTable('training_files', (table: any) => {
       table.increments('id').primary();
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
       table.string('filename').notNullable();
       table.string('original_name').notNullable();
       table.text('content');
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
-  const hasSettings = await dbProxy.schema.hasTable('settings');
+  const hasSettings = await currentDb.schema.hasTable('settings');
   if (!hasSettings) {
-    await dbProxy.schema.createTable('settings', (table: any) => {
+    await currentDb.schema.createTable('settings', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.string('provider').notNullable();
@@ -247,7 +242,7 @@ async function initDb() {
       table.integer('is_active').defaultTo(1);
       table.string('status').defaultTo('active');
       table.float('credits_remaining').defaultTo(0);
-      table.timestamp('created_at').defaultTo(dbProxy.fn.now());
+      table.timestamp('created_at').defaultTo(currentDb.fn.now());
     });
   }
 
@@ -260,26 +255,26 @@ const dbWrapper = {
     return {
       all: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
-        const result = await dbProxy.raw(sql, bindings);
+        const result = await currentDb.raw(sql, bindings);
         return result[0];
       },
       get: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
-        const result = await dbProxy.raw(sql, bindings);
+        const result = await currentDb.raw(sql, bindings);
         const rows = result[0];
         return rows[0];
       },
       run: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
-        const result = await dbProxy.raw(sql, bindings);
+        const result = await currentDb.raw(sql, bindings);
         return { lastInsertRowid: result[0].insertId };
       }
     };
   },
   exec: async (sql: string) => {
-    return await dbProxy.raw(sql);
+    return await currentDb.raw(sql);
   }
 };
 
-export { initDb, dbProxy as knex };
+export { initDb, currentDb as knex, hasMySQLConfig as isMySQL };
 export default dbWrapper;
