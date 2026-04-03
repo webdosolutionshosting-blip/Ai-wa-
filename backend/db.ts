@@ -22,17 +22,14 @@ const mysqlConfig = {
   pool: { min: 0, max: 10 }
 };
 
-const sqliteConfig = {
-  client: 'better-sqlite3',
-  connection: {
-    filename: path.join(process.cwd(), 'database.sqlite'),
-  },
-  useNullAsDefault: true
-};
+// Hostinger optimization: Use MySQL exclusively
+if (!isMySQL) {
+  console.warn('MySQL configuration missing. Please check your .env file. The application requires MySQL for Hostinger deployment.');
+}
 
-let currentDb = knex(isMySQL ? mysqlConfig : sqliteConfig);
+let currentDb = knex(mysqlConfig);
 
-// Proxy to allow dynamic switching of the knex instance
+// Proxy to allow dynamic switching of the knex instance (kept for compatibility)
 const dbProxy = new Proxy({} as any, {
   get(_, prop) {
     return (currentDb as any)[prop];
@@ -41,22 +38,22 @@ const dbProxy = new Proxy({} as any, {
 
 // Initialize tables
 async function initDb() {
-  if (isMySQL) {
-    try {
-      console.log('Attempting to connect to MySQL...');
-      // Try a simple query with a short timeout to check connection
-      await Promise.race([
-        currentDb.raw('SELECT 1'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('MySQL connection timeout')), 5000))
-      ]);
-      console.log('Connected to MySQL successfully');
-    } catch (error: any) {
-      console.error('MySQL connection failed, falling back to SQLite:', error.message);
-      isMySQL = false;
-      // Close the failed MySQL connection pool if possible
-      try { await currentDb.destroy(); } catch (e) {}
-      currentDb = knex(sqliteConfig);
-    }
+  if (!isMySQL) {
+    console.error('Database initialization failed: MySQL configuration missing.');
+    return;
+  }
+
+  try {
+    console.log('Attempting to connect to MySQL...');
+    // Try a simple query with a short timeout to check connection
+    await Promise.race([
+      currentDb.raw('SELECT 1'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('MySQL connection timeout')), 5000))
+    ]);
+    console.log('Connected to MySQL successfully');
+  } catch (error: any) {
+    console.error('MySQL connection failed:', error.message);
+    throw error; // Fail fast on Hostinger if MySQL is not available
   }
 
   const hasUsers = await dbProxy.schema.hasTable('users');
@@ -254,7 +251,7 @@ async function initDb() {
     });
   }
 
-  console.log(`Database initialized successfully using ${isMySQL ? 'MySQL' : 'SQLite'}`);
+  console.log('Database initialized successfully using MySQL');
 }
 
 // Helper to bridge better-sqlite3 style calls to knex (for minimal refactoring)
@@ -264,22 +261,18 @@ const dbWrapper = {
       all: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
         const result = await dbProxy.raw(sql, bindings);
-        return isMySQL ? result[0] : result;
+        return result[0];
       },
       get: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
         const result = await dbProxy.raw(sql, bindings);
-        const rows = isMySQL ? result[0] : result;
+        const rows = result[0];
         return rows[0];
       },
       run: async (...args: any[]) => {
         const bindings = Array.isArray(args[0]) ? args[0] : args;
         const result = await dbProxy.raw(sql, bindings);
-        if (isMySQL) {
-          return { lastInsertRowid: result[0].insertId };
-        } else {
-          return { lastInsertRowid: result.lastInsertRowid || result[0]?.id };
-        }
+        return { lastInsertRowid: result[0].insertId };
       }
     };
   },

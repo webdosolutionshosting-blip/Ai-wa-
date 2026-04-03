@@ -5,7 +5,7 @@
   "type": "module",
   "main": "server.ts",
   "engines": {
-    "node": ">=20.x"
+    "node": "20.x"
   },
   "scripts": {
     "dev": "tsx server.ts",
@@ -23,19 +23,17 @@
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.14.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.8.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
-    "fetch-blob": "^4.0.0",
     "glob": "^13.0.6",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.2.9",
-    "lucide-react": "^0.475.0",
+    "lucide-react": "^1.7.0",
     "mammoth": "^1.12.0",
     "motion": "^12.38.0",
     "multer": "^2.1.1",
@@ -50,10 +48,9 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.5.0",
-    "whatwg-encoding": "^3.1.1",
-    "whatwg-mimetype": "^4.0.0",
     "tsx": "^4.21.0",
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "whatwg-mimetype": "^5.0.0"
   },
   "overrides": {
     "glob": "^13.0.6"
@@ -70,7 +67,7 @@
     "autoprefixer": "^10.4.27",
     "rimraf": "^6.1.3",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.2",
     "vite": "^8.0.3"
   }
 }
