@@ -5,7 +5,7 @@
   "type": "module",
   "main": "server.ts",
   "engines": {
-    "node": "20.x"
+    "node": ">=20.x"
   },
   "scripts": {
     "dev": "tsx server.ts",
@@ -16,7 +16,6 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
-    "@exodus/bytes": "^1.15.0",
     "@google/genai": "^1.48.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
@@ -51,13 +50,13 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.5.0",
+    "whatwg-encoding": "^3.1.1",
+    "whatwg-mimetype": "^4.0.0",
     "tsx": "^4.21.0",
     "vite": "^8.0.3"
   },
   "overrides": {
-    "glob": "^13.0.6",
-    "fetch-blob": "^4.0.0",
-    "whatwg-encoding": "@exodus/bytes"
+    "glob": "^13.0.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
