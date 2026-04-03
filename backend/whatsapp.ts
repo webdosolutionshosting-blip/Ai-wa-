@@ -153,7 +153,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
         : 'INSERT OR IGNORE INTO conversations (session_id, contact_number, contact_name, last_message_at) VALUES (?, ?, ?, ?)';
       const insertConv = await db.prepare(insertConvSql);
       for (const chat of chats) {
-        if (chat.id === 'status@broadcast') continue;
+        if (chat.id === 'status@broadcast' || !chat.id) continue;
         await insertConv.run(sessionId, chat.id, chat.name || null, new Date().toISOString());
       }
       await db.exec('COMMIT');
@@ -176,7 +176,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
           await db.exec('BEGIN TRANSACTION');
         }
         for (const msg of chunk) {
-          if (msg.key.remoteJid === 'status@broadcast') continue;
+          if (msg.key?.remoteJid === 'status@broadcast' || !msg.key?.remoteJid) continue;
           if (msg.message) {
             await saveMessage(sessionId, sock, msg, io, false);
           }
@@ -215,7 +215,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
       // Skip status updates
       if (chat.id === 'status@broadcast') continue;
       
-      const number = chat.id.split('@')[0];
+      const number = chat.id?.split('@')[0];
       await insertConv.run(sessionId, chat.id, chat.name || null, new Date().toISOString());
     }
   });
@@ -272,7 +272,7 @@ export async function connectToWhatsApp(sessionId: string, io: SocketIOServer) {
 }
 
 async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMessageInfo, io: SocketIOServer, shouldEmit: boolean = true) {
-  const from = msg.key.remoteJid;
+  const from = msg.key?.remoteJid;
   if (!from || from === 'status@broadcast') return null;
 
   let text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
@@ -431,7 +431,7 @@ async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMes
     `).run(
       sessionId, 
       from, 
-      msg.key.fromMe ? 0 : 1,
+      msg.key?.fromMe ? 0 : 1,
       contactName,
       globalContact?.is_saved || 0,
       globalContact?.is_ordered || 0,
@@ -463,15 +463,15 @@ async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMes
       );
     }
     
-    if (!msg.key.fromMe && shouldEmit) {
+    if (!msg.key?.fromMe && shouldEmit) {
       await db.prepare('UPDATE conversations SET unread_count = unread_count + 1 WHERE id = ?').run(conversation.id);
     }
   }
 
   // Update contact name if available in pushName
-  if (!msg.key.fromMe && msg.pushName) {
+  if (!msg.key?.fromMe && msg.pushName) {
     await db.prepare('UPDATE conversations SET contact_name = ? WHERE id = ?').run(msg.pushName, conversation.id);
-  } else if (conversation && !conversation.contact_name && !msg.key.fromMe) {
+  } else if (conversation && !conversation.contact_name && !msg.key?.fromMe) {
     // Try to fetch from contacts table if we synced it before
     const contact = await db.prepare('SELECT name FROM contacts WHERE session_id = ? AND jid = ?').get(sessionId, from) as any;
     if (contact && contact.name) {
@@ -489,7 +489,7 @@ async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMes
 
   if (!existing) {
     const msgResult = await db.prepare('INSERT INTO messages (conversation_id, sender, content, type, created_at, transcription) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(conversation.id, msg.key.fromMe ? 'agent' : 'contact', text, type, timestamp, (msg as any).transcription || null);
+      .run(conversation.id, msg.key?.fromMe ? 'agent' : 'contact', text, type, timestamp, (msg as any).transcription || null);
     const messageId = msgResult.lastInsertRowid;
     
     await db.prepare('UPDATE conversations SET last_message_at = ? WHERE id = ?')
@@ -505,7 +505,7 @@ async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMes
         id: messageId,
         conversation_id: conversation.id,
         session_id: sessionId,
-        sender: msg.key.fromMe ? 'agent' : 'contact',
+        sender: msg.key?.fromMe ? 'agent' : 'contact',
         content: text,
         type,
         created_at: timestamp,
@@ -530,7 +530,7 @@ async function saveMessage(sessionId: string, sock: WASocket, msg: proto.IWebMes
 }
 
 async function handleIncomingMessage(sessionId: string, sock: WASocket, msg: proto.IWebMessageInfo, io: SocketIOServer) {
-  const from = msg.key.remoteJid;
+  const from = msg.key?.remoteJid;
   if (!from) return;
 
   console.log(`Received message from ${from} in session ${sessionId}`);

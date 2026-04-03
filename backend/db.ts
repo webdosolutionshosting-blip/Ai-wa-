@@ -61,7 +61,7 @@ async function initDb() {
 
   const hasUsers = await dbProxy.schema.hasTable('users');
   if (!hasUsers) {
-    await dbProxy.schema.createTable('users', (table) => {
+    await dbProxy.schema.createTable('users', (table: any) => {
       table.increments('id').primary();
       table.string('email').unique().notNullable();
       table.string('username');
@@ -75,19 +75,19 @@ async function initDb() {
     // Check for missing columns and add them if necessary
     const columns = await dbProxy('users').columnInfo();
     if (!columns.email) {
-      await dbProxy.schema.alterTable('users', (table) => {
+      await dbProxy.schema.alterTable('users', (table: any) => {
         table.string('email').unique();
       });
       // Migrate username to email if email is null
       await dbProxy('users').update({ email: dbProxy.ref('username') }).whereNull('email');
     }
     if (!columns.role) {
-      await dbProxy.schema.alterTable('users', (table) => {
+      await dbProxy.schema.alterTable('users', (table: any) => {
         table.string('role').defaultTo('user');
       });
     }
     if (!columns.two_factor_secret) {
-      await dbProxy.schema.alterTable('users', (table) => {
+      await dbProxy.schema.alterTable('users', (table: any) => {
         table.string('two_factor_secret');
         table.boolean('is_two_factor_enabled').defaultTo(false);
       });
@@ -113,7 +113,7 @@ async function initDb() {
 
   const hasAgents = await dbProxy.schema.hasTable('agents');
   if (!hasAgents) {
-    await dbProxy.schema.createTable('agents', (table) => {
+    await dbProxy.schema.createTable('agents', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.string('name').notNullable();
@@ -135,7 +135,7 @@ async function initDb() {
 
   const hasSessions = await dbProxy.schema.hasTable('whatsapp_sessions');
   if (!hasSessions) {
-    await dbProxy.schema.createTable('whatsapp_sessions', (table) => {
+    await dbProxy.schema.createTable('whatsapp_sessions', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
@@ -149,7 +149,7 @@ async function initDb() {
 
   const hasConversations = await dbProxy.schema.hasTable('conversations');
   if (!hasConversations) {
-    await dbProxy.schema.createTable('conversations', (table) => {
+    await dbProxy.schema.createTable('conversations', (table: any) => {
       table.increments('id').primary();
       table.integer('session_id').unsigned().references('id').inTable('whatsapp_sessions').onDelete('CASCADE');
       table.string('contact_number').notNullable();
@@ -167,7 +167,7 @@ async function initDb() {
 
   const hasMessages = await dbProxy.schema.hasTable('messages');
   if (!hasMessages) {
-    await dbProxy.schema.createTable('messages', (table) => {
+    await dbProxy.schema.createTable('messages', (table: any) => {
       table.increments('id').primary();
       table.integer('conversation_id').unsigned().references('id').inTable('conversations').onDelete('CASCADE');
       table.string('sender').notNullable();
@@ -180,7 +180,7 @@ async function initDb() {
 
   const hasCampaigns = await dbProxy.schema.hasTable('bulk_campaigns');
   if (!hasCampaigns) {
-    await dbProxy.schema.createTable('bulk_campaigns', (table) => {
+    await dbProxy.schema.createTable('bulk_campaigns', (table: any) => {
       table.increments('id').primary();
       table.string('name').notNullable();
       table.text('message').notNullable();
@@ -192,7 +192,7 @@ async function initDb() {
 
   const hasRecipients = await dbProxy.schema.hasTable('bulk_recipients');
   if (!hasRecipients) {
-    await dbProxy.schema.createTable('bulk_recipients', (table) => {
+    await dbProxy.schema.createTable('bulk_recipients', (table: any) => {
       table.increments('id').primary();
       table.integer('campaign_id').unsigned().references('id').inTable('bulk_campaigns').onDelete('CASCADE');
       table.string('number').notNullable();
@@ -202,7 +202,7 @@ async function initDb() {
 
   const hasContacts = await dbProxy.schema.hasTable('contacts');
   if (!hasContacts) {
-    await dbProxy.schema.createTable('contacts', (table) => {
+    await dbProxy.schema.createTable('contacts', (table: any) => {
       table.increments('id').primary();
       table.integer('session_id').unsigned().references('id').inTable('whatsapp_sessions').onDelete('CASCADE');
       table.string('jid').notNullable();
@@ -215,7 +215,7 @@ async function initDb() {
 
   const hasAgentRules = await dbProxy.schema.hasTable('agent_rules');
   if (!hasAgentRules) {
-    await dbProxy.schema.createTable('agent_rules', (table) => {
+    await dbProxy.schema.createTable('agent_rules', (table: any) => {
       table.increments('id').primary();
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
       table.string('trigger_type').notNullable(); // 'url_shared', 'keyword_match', 'sender_match'
@@ -230,7 +230,7 @@ async function initDb() {
 
   const hasTrainingFiles = await dbProxy.schema.hasTable('training_files');
   if (!hasTrainingFiles) {
-    await dbProxy.schema.createTable('training_files', (table) => {
+    await dbProxy.schema.createTable('training_files', (table: any) => {
       table.increments('id').primary();
       table.integer('agent_id').unsigned().references('id').inTable('agents').onDelete('CASCADE');
       table.string('filename').notNullable();
@@ -242,7 +242,7 @@ async function initDb() {
 
   const hasSettings = await dbProxy.schema.hasTable('settings');
   if (!hasSettings) {
-    await dbProxy.schema.createTable('settings', (table) => {
+    await dbProxy.schema.createTable('settings', (table: any) => {
       table.increments('id').primary();
       table.integer('user_id').unsigned().references('id').inTable('users').onDelete('CASCADE');
       table.string('provider').notNullable();
